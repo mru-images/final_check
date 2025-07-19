@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ChevronDown, MoreHorizontal, Heart, Share2, Play, Pause, SkipBack, SkipForward, Volume2, Repeat, Shuffle, Plus, Eye } from 'lucide-react';
+import { ChevronDown, MoreHorizontal, Heart, Share2, Play, Pause, SkipBack, SkipForward, Volume2, Repeat, Shuffle, Plus, Eye, Moon } from 'lucide-react';
 import { Song } from '@/types';
 import { useTheme } from '@/components/ThemeContext';
 import QueueSection from './QueueSection';
@@ -31,6 +31,9 @@ interface MaximizedPlayerProps {
   setIsShuffleEnabled: (enabled: boolean) => void;
   repeatMode: 'off' | 'once' | 'infinite';
   setRepeatMode: (mode: 'off' | 'once' | 'infinite') => void;
+  sleepTimer?: number | 'after-song' | null;
+  remainingTime?: number | null;
+  onOpenSleepTimer?: () => void;
 }
 
 const MaximizedPlayer: React.FC<MaximizedPlayerProps> = ({
@@ -58,7 +61,10 @@ const MaximizedPlayer: React.FC<MaximizedPlayerProps> = ({
   isShuffleEnabled,
   setIsShuffleEnabled,
   repeatMode,
-  setRepeatMode
+  setRepeatMode,
+  sleepTimer,
+  remainingTime,
+  onOpenSleepTimer
 }) => {
   const { isDarkMode } = useTheme();
   const [showMenu, setShowMenu] = useState(false);
@@ -160,6 +166,18 @@ const MaximizedPlayer: React.FC<MaximizedPlayerProps> = ({
             <div className={`absolute right-0 top-12 ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border rounded-lg shadow-lg py-2 w-48 z-10`}>
               <button 
                 onClick={() => {
+                  if (onOpenSleepTimer) {
+                    onOpenSleepTimer();
+                  }
+                  setShowMenu(false);
+                }}
+                className={`w-full text-left px-4 py-2 ${isDarkMode ? 'hover:bg-gray-700 text-white' : 'hover:bg-gray-100 text-gray-900'} flex items-center transition-colors`}
+              >
+                <Moon size={16} className="mr-3 text-purple-400" />
+                Sleep Timer
+              </button>
+              <button 
+                onClick={() => {
                   onAddToPlaylist();
                   setShowMenu(false);
                 }}
@@ -194,6 +212,22 @@ const MaximizedPlayer: React.FC<MaximizedPlayerProps> = ({
 
           {/* Song Info */}
           <div className="text-center mb-6">
+            {/* Sleep Timer Display */}
+            {sleepTimer && (
+              <div className={`mb-4 p-3 rounded-lg ${isDarkMode ? 'bg-gray-800 border border-gray-700' : 'bg-gray-100 border border-gray-200'}`}>
+                <div className="flex items-center justify-center space-x-2">
+                  <Moon size={16} className="text-purple-400" />
+                  <span className={`text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                    Sleep Timer: {
+                      typeof sleepTimer === 'number' && remainingTime 
+                        ? `${remainingTime} minute${remainingTime !== 1 ? 's' : ''} remaining`
+                        : 'After current song'
+                    }
+                  </span>
+                </div>
+              </div>
+            )}
+            
             <h1 className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'} mb-2`}>{song.name}</h1>
             <p className={`${isDarkMode ? 'text-gray-400' : 'text-gray-600'} text-lg`}>{song.artist}</p>
             <div className="flex items-center justify-center space-x-2 mt-2">

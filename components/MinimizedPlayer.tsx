@@ -1,5 +1,5 @@
 import React from 'react';
-import { Play, Pause, SkipForward, SkipBack, X, Heart } from 'lucide-react';
+import { Play, Pause, SkipForward, SkipBack, X, Heart, MoreHorizontal, Moon } from 'lucide-react';
 import { Song } from '@/types';
 import { useTheme } from '@/components/ThemeContext';
 
@@ -16,6 +16,9 @@ interface MinimizedPlayerProps {
   imageUrl?: string;
   currentTime: number;
   duration: number;
+  sleepTimer?: number | 'after-song' | null;
+  remainingTime?: number | null;
+  onOpenSleepTimer?: () => void;
 }
 
 const MinimizedPlayer: React.FC<MinimizedPlayerProps> = ({
@@ -30,9 +33,13 @@ const MinimizedPlayer: React.FC<MinimizedPlayerProps> = ({
   formatNumber,
   imageUrl,
   currentTime,
-  duration
+  duration,
+  sleepTimer,
+  remainingTime,
+  onOpenSleepTimer
 }) => {
   const { isDarkMode } = useTheme();
+  const [showMenu, setShowMenu] = React.useState(false);
 
   const handleClose = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -42,6 +49,19 @@ const MinimizedPlayer: React.FC<MinimizedPlayerProps> = ({
   const handleLike = (e: React.MouseEvent) => {
     e.stopPropagation();
     onToggleLike();
+  };
+
+  const handleMenuClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setShowMenu(!showMenu);
+  };
+
+  const handleSleepTimerClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (onOpenSleepTimer) {
+      onOpenSleepTimer();
+    }
+    setShowMenu(false);
   };
   const progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
 
@@ -59,6 +79,13 @@ const MinimizedPlayer: React.FC<MinimizedPlayerProps> = ({
       <div className="flex items-center justify-between p-3">
         {/* Song Info - Clickable to maximize */}
         <div className="flex items-center flex-1 min-w-0 cursor-pointer" onClick={onMaximize}>
+          {/* Sleep Timer Indicator */}
+          {sleepTimer && (
+            <div className={`mr-2 px-2 py-1 rounded-full text-xs font-medium ${isDarkMode ? 'bg-purple-900 text-purple-300' : 'bg-purple-100 text-purple-700'}`}>
+              {typeof sleepTimer === 'number' && remainingTime ? `${remainingTime}m` : '♪'}
+            </div>
+          )}
+          
           <img
             src={imageUrl || song.image}
             alt={song.name}
@@ -84,6 +111,28 @@ const MinimizedPlayer: React.FC<MinimizedPlayerProps> = ({
         
         {/* Controls */}
         <div className="flex items-center space-x-1">
+          {/* Menu Button */}
+          <div className="relative">
+            <button 
+              onClick={handleMenuClick}
+              className={`p-2 ${isDarkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'} rounded-full transition-colors`}
+            >
+              <MoreHorizontal size={16} className={isDarkMode ? 'text-gray-400' : 'text-gray-600'} />
+            </button>
+            
+            {showMenu && (
+              <div className={`absolute bottom-12 right-0 ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border rounded-lg shadow-lg py-2 w-48 z-50`}>
+                <button
+                  onClick={handleSleepTimerClick}
+                  className={`w-full text-left px-4 py-2 ${isDarkMode ? 'hover:bg-gray-700 text-white' : 'hover:bg-gray-100 text-gray-900'} flex items-center transition-colors`}
+                >
+                  <Moon size={16} className="mr-3 text-purple-400" />
+                  Sleep Timer
+                </button>
+              </div>
+            )}
+          </div>
+          
           <button 
             onClick={(e) => {
               e.stopPropagation();

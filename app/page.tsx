@@ -12,9 +12,11 @@ import MaximizedPlayer from '@/components/MaximizedPlayer';
 import CreatePlaylistModal from '@/components/CreatePlaylistModal';
 import AddToPlaylistModal from '@/components/AddToPlaylistModal';
 import AuthWrapper from '@/components/AuthWrapper';
+import SleepTimerModal from '@/components/SleepTimerModal';
 import { useAuth } from '@/hooks/useAuth';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
 import { useQueue } from '@/hooks/useQueue';
+import { useSleepTimer } from '@/hooks/useSleepTimer';
 import { Song } from '@/types';
 import { useTheme } from '@/components/ThemeContext';
 import {Toaster,toast} from 'react-hot-toast';
@@ -56,6 +58,7 @@ function MusicPlayerContent() {
   const [isPlayerMaximized, setIsPlayerMaximized] = useState(false);
   const [showCreatePlaylistModal, setShowCreatePlaylistModal] = useState(false);
   const [showAddToPlaylistModal, setShowAddToPlaylistModal] = useState(false);
+  const [showSleepTimerModal, setShowSleepTimerModal] = useState(false);
   const [selectedSongForPlaylist, setSelectedSongForPlaylist] = useState<Song | null>(null);
   const [hasSetLastPlayedSong, setHasSetLastPlayedSong] = useState(false);
   const [lastPlayedSongDismissed, setLastPlayedSongDismissed] = useState(false);
@@ -85,6 +88,16 @@ function MusicPlayerContent() {
   // Shuffle and repeat state
   const [isShuffleEnabled, setIsShuffleEnabled] = useState(true); // Shuffle on by default
   const [repeatMode, setRepeatMode] = useState<'off' | 'once' | 'infinite'>('off');
+
+  // Sleep timer
+  const { 
+    sleepTimer, 
+    remainingTime, 
+    startTimer, 
+    cancelTimer, 
+    triggerAfterSongTimer, 
+    isActive: isSleepTimerActive 
+  } = useSleepTimer();
 
 const loadMoreSongs = () => {
   setDisplayCount(prev => prev + 15);
@@ -631,6 +644,12 @@ const handleNext = async () => {
   };
 
   const handleSongEnd = async () => {
+    // Check if sleep timer is set to "after-song" and trigger it
+    if (sleepTimer === 'after-song') {
+      triggerAfterSongTimer();
+      return;
+    }
+    
     // Record if song was listened to completely (assume >20 seconds if it ended naturally)
     if (currentSong && songStartTime) {
       const listenDuration = (new Date().getTime() - songStartTime.getTime()) / 1000;
@@ -666,6 +685,23 @@ const handleNext = async () => {
     // When a song ends, automatically play the next one
     await handleNext();
 };
+
+  const handleSleepTimerSet = (minutes: number | 'after-song' | null) => {
+    if (minutes === null) {
+      cancelTimer();
+    } else {
+      startTimer(minutes, () => {
+        setIsPlaying(false);
+        toast.success('Sleep timer ended - music stopped');
+      });
+      
+      if (typeof minutes === 'number') {
+        toast.success(`Sleep timer set for ${minutes} minutes`);
+      } else {
+        toast.success('Sleep timer set to stop after current song');
+      }
+    }
+  };
 
   const renderContent = () => {
     if (currentPage === 'playlists') {
@@ -832,6 +868,9 @@ const setCurrentTimeState = setCurrentTime;
                 setIsShuffleEnabled={setIsShuffleEnabled}
                 repeatMode={repeatMode}
                 setRepeatMode={setRepeatMode}
+                sleepTimer={sleepTimer}
+                remainingTime={remainingTime}
+                onOpenSleepTimer={() => setShowSleepTimerModal(true)}
               />
             )}
           </>
@@ -859,6 +898,13 @@ const setCurrentTimeState = setCurrentTime;
           }}
           imageUrls={imageUrls}
           setImageUrls={setImageUrls}
+        />
+
+        <SleepTimerModal
+          isOpen={showSleepTimerModal}
+          onClose={() => setShowSleepTimerModal(false)}
+          onSetTimer={handleSleepTimerSet}
+          currentTimer={sleepTimer}
         />
         <audio
           ref={audioRef}
