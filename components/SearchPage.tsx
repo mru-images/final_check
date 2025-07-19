@@ -145,11 +145,9 @@ const SearchPage: React.FC<SearchPageProps> = ({ songs, onSongPlay, formatNumber
                   onClick={() => handleSuggestionClick(song)}
                   className={`w-full flex items-center p-3 ${isDarkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'} transition-colors text-left`}
                 >
-                  <img
-                    src={imageUrls[song.id] || `/api/image-proxy?fileid=${song.img_id}`}
-                    alt={song.name}
-                    className="w-10 h-10 rounded-lg object-cover mr-3"
-                  />
+                  <div className={`w-10 h-10 rounded-lg ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} flex items-center justify-center mr-3`}>
+                    <Music size={16} className={isDarkMode ? 'text-gray-400' : 'text-gray-500'} />
+                  </div>
                   <div className="flex-1 min-w-0">
                     <h4 className={`font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'} truncate`}>
                       {song.name}
