@@ -17,50 +17,103 @@ interface SearchPageProps {
 
 const SearchPage: React.FC<SearchPageProps> = ({ songs, onSongPlay, formatNumber, onAddToPlaylist, onAddToQueue, imageUrls,setImageUrls }) => {
   const { isDarkMode } = useTheme();
-  const [pendingSearch, setPendingSearch] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchSubmitted, setSearchSubmitted] = useState(false);
-  const [isLoadingImages, setIsLoadingImages] = useState(false);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [selectedSongs, setSelectedSongs] = useState<Song[]>([]);
+  const [hasSearched, setHasSearched] = useState(false);
   const [displayCount, setDisplayCount] = useState(10);
 
   
+  // Get suggestions based on current search query
+  const suggestions = searchQuery.trim() 
+    ? songs.filter(song =>
+        song.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        song.artist.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        song.tags.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase()))
+      ).slice(0, 8) // Limit to 8 suggestions
+    : [];
+
+  const displayedSelectedSongs = selectedSongs.slice(0, displayCount);
+  const hasMoreSongs = displayCount < selectedSongs.length;
+
+  const handleSearchChange = (value: string) => {
+    setSearchQuery(value);
+    setShowSuggestions(value.trim().length > 0);
+    
+    // If search is cleared, reset everything
+    if (value.trim() === '') {
+      setSelectedSongs([]);
+      setHasSearched(false);
+      setDisplayCount(10);
+    }
+  };
+
+  const handleSuggestionClick = (song: Song) => {
+    setSearchQuery(song.name);
+    setShowSuggestions(false);
+    performSearch(song.name);
+  };
+
+  const performSearch = async (query: string) => {
+    const searchTerm = query || searchQuery;
+    if (!searchTerm.trim()) return;
+
+    const filtered = songs.filter(song =>
+      song.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      song.artist.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      song.tags.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase()))
+    );
+
+    setSelectedSongs(filtered);
+    setHasSearched(true);
+    setDisplayCount(10);
+    setShowSuggestions(false);
+
+    // Preload images for search results
+    const missingUrls: Record<string, string> = {};
+    for (const song of filtered.slice(0, 10)) {
+      if (!imageUrls[song.id]) {
+        missingUrls[song.id] = `/api/image-proxy?fileid=${song.img_id}`;
+      }
+    }
+
+    if (Object.keys(missingUrls).length > 0) {
+      setImageUrls(prev => ({ ...prev, ...missingUrls }));
+    }
+  };
+
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    performSearch(searchQuery);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      performSearch(searchQuery);
+    } else if (e.key === 'Escape') {
+      setShowSuggestions(false);
+    }
+  };
+
+  const loadMore = () => {
+    setDisplayCount(prev => prev + 10);
+  };
+
+  // Handle clicking outside to close suggestions
+  const handleSearchContainerBlur = (e: React.FocusEvent) => {
+    // Delay hiding suggestions to allow for suggestion clicks
+    setTimeout(() => {
+      setShowSuggestions(false);
+    }, 150);
+  };
+
   const filteredSongs = songs.filter(song =>
     song.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     song.artist.toLowerCase().includes(searchQuery.toLowerCase()) ||
     song.tags.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
-  const displayedSongs = filteredSongs.slice(0, displayCount);
-  const hasMoreSongs = displayCount < filteredSongs.length;
-  const handleSearchSubmit = async () => {
-  setSearchQuery(pendingSearch);
-  setSearchSubmitted(true);
-  setDisplayCount(10);
-  setIsLoadingImages(true);
-
-  const filtered = songs.filter(song =>
-    song.name.toLowerCase().includes(pendingSearch.toLowerCase()) ||
-    song.artist.toLowerCase().includes(pendingSearch.toLowerCase()) ||
-    song.tags.some(tag => tag.toLowerCase().includes(pendingSearch.toLowerCase()))
-  );
-
-  const missingUrls: Record<string, string> = {};
-  for (const song of filtered) {
-    if (!imageUrls[song.img_id]) {
-      missingUrls[song.img_id] = `/api/image-proxy?fileid=${song.img_id}`;
-    }
-  }
-
-  if (Object.keys(missingUrls).length > 0) {
-    setImageUrls(prev => ({ ...prev, ...missingUrls }));
-  }
-
-  setIsLoadingImages(false);
-};
-
-  const loadMore = () => {
-    setDisplayCount(prev => prev + 10);
-  };
 
   return (
     <div className={`min-h-screen ${isDarkMode ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-900'}`}>
@@ -69,29 +122,55 @@ const SearchPage: React.FC<SearchPageProps> = ({ songs, onSongPlay, formatNumber
         <h1 className="text-2xl font-bold mb-4">Search</h1>
         
         {/* Search Bar */}
-        <div className="relative">
+        <div className="relative" onBlur={handleSearchContainerBlur}>
           <Search className={`absolute left-3 top-1/2 transform -translate-y-1/2 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`} size={20} />
-          <input
-            type="text"
-            placeholder="What do you want to listen to?"
-            value={pendingSearch}
-            onChange={(e) => setPendingSearch(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                handleSearchSubmit();
-              }
-            }}
-            className={`w-full ${isDarkMode ? 'bg-gray-800' : 'bg-white border border-gray-200'} rounded-full py-3 pl-11 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all`} // existing styles
-          />
+          <form onSubmit={handleSearchSubmit}>
+            <input
+              type="text"
+              placeholder="What do you want to listen to?"
+              value={searchQuery}
+              onChange={(e) => handleSearchChange(e.target.value)}
+              onKeyDown={handleKeyDown}
+              onFocus={() => setShowSuggestions(searchQuery.trim().length > 0)}
+              className={`w-full ${isDarkMode ? 'bg-gray-800' : 'bg-white border border-gray-200'} rounded-full py-3 pl-11 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all`}
+            />
+          </form>
+
+          {/* Search Suggestions */}
+          {showSuggestions && suggestions.length > 0 && (
+            <div className={`absolute top-full left-0 right-0 mt-2 ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border rounded-lg shadow-lg max-h-64 overflow-y-auto z-20`}>
+              {suggestions.map((song) => (
+                <button
+                  key={song.id}
+                  onClick={() => handleSuggestionClick(song)}
+                  className={`w-full flex items-center p-3 ${isDarkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'} transition-colors text-left`}
+                >
+                  <img
+                    src={imageUrls[song.id] || `/api/image-proxy?fileid=${song.img_id}`}
+                    alt={song.name}
+                    className="w-10 h-10 rounded-lg object-cover mr-3"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <h4 className={`font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'} truncate`}>
+                      {song.name}
+                    </h4>
+                    <p className={`${isDarkMode ? 'text-gray-400' : 'text-gray-600'} text-sm truncate`}>
+                      {song.artist}
+                    </p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
 
         </div>
       </div>
 
       {/* Content */}
       <div className="px-4 pb-4">
-                {searchQuery === '' ? (
+        {!hasSearched ? (
           <>
-            {/* Keep tag categories exactly as-is */}
+            {/* Browse Categories */}
             <div>
               <h2 className="text-lg font-semibold mb-4">Browse all</h2>
               <div className="grid grid-cols-2 gap-3">
@@ -106,8 +185,8 @@ const SearchPage: React.FC<SearchPageProps> = ({ songs, onSongPlay, formatNumber
                   <button
                     key={index}
                     onClick={() => {
-                      setPendingSearch(category.name);
-                      handleSearchSubmit();
+                      setSearchQuery(category.name);
+                      performSearch(category.name);
                     }}
                     className={`relative p-4 rounded-lg bg-gradient-to-br ${category.color} h-24 overflow-hidden transition-transform hover:scale-105`}
                   >
@@ -121,43 +200,29 @@ const SearchPage: React.FC<SearchPageProps> = ({ songs, onSongPlay, formatNumber
         ) : (
           <div>
             <h2 className="text-lg font-semibold mb-4">
-              {filteredSongs.length > 0 ? `Found ${filteredSongs.length} results` : 'No results found'}
+              {selectedSongs.length > 0 ? `Found ${selectedSongs.length} results for "${searchQuery}"` : 'No results found'}
             </h2>
 
-            {isLoadingImages ? (
-              <div className="flex items-center justify-center py-10">
-                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-purple-500"></div>
-              </div>
-            ) : (
+            {selectedSongs.length > 0 ? (
               <div className="space-y-3">
-                {!searchSubmitted ? (
-                  // Only show names
-                  displayedSongs.map(song => (
-                    <div key={song.id} className="px-4 py-2 border-b">
-                      {song.name}
-                    </div>
-                  ))
-                ) : (
-                  // Full SongCard
-                  displayedSongs.map(song => (
-                    <SongCard
-                      key={song.id}
-                      song={song}
-                      onPlay={onSongPlay}
-                      formatNumber={formatNumber}
-                      onAddToPlaylist={onAddToPlaylist}
-                      onAddToQueue={onAddToQueue}
-                      cachedImageUrl={imageUrls[song.img_id]}
-                    />
-                  ))
-                )}
+                {displayedSelectedSongs.map(song => (
+                  <SongCard
+                    key={song.id}
+                    song={song}
+                    onPlay={onSongPlay}
+                    formatNumber={formatNumber}
+                    onAddToPlaylist={onAddToPlaylist}
+                    onAddToQueue={onAddToQueue}
+                    cachedImageUrl={imageUrls[song.id]}
+                  />
+                ))}
               </div>
-            )}
+            ) : null}
 
-            {hasMoreSongs && searchSubmitted && !isLoadingImages && (
+            {hasMoreSongs && (
               <div className="flex justify-center mt-6">
                 <button
-                  onClick={() => setDisplayCount(prev => prev + 10)}
+                  onClick={loadMore}
                   className={`flex items-center space-x-2 px-6 py-3 ${isDarkMode ? 'bg-gray-800 hover:bg-gray-700 border-gray-700' : 'bg-white hover:bg-gray-50 border-gray-200'} border rounded-full transition-colors`}
                 >
                   <Plus size={18} className="text-purple-400" />
